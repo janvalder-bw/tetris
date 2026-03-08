@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Hide scrollbars */
+            background-color: black;
+        }
+
+        #tetris {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh; /* Use viewport height */
+        }
+
+        canvas {
+            border: none;
+            background-color: black;
+        }
+
+        #score {
+            font-family: monospace;
+            color: white;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* Ensure it's on top */
+            opacity: 1;
+        }
+
+        #overlay-content {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        #overlay-content h2 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+
+        #overlay-content p {
+            margin: 0;
+            font-size: 1em;
+        }
+
+        #overlay-content button {
+            background-color: #4CAF50; /* Green */
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 1em;
+            margin: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #overlay-content button:hover {
+            background-color: #3e8e41; /* Darker Green */
+        }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="tetris" width="240" height="600"></canvas>
+    <div id="score">Score: 0</div>
+
+    <div id="overlay" style="display: none;">
+        <div id="overlay-content">
+            <h2>Instructions</h2>
+            <p>Use arrow keys (or swipe) to move the piece. Rotate with up arrow key (or swipe up). Drop down quickly with down arrow key (or swipe down).</p>
+            <button id="restart">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('tetris');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+
+        let gridWidth = 24;
+        let gridHeight = 60;
+        let currentPiece = null;
+        let grid = [];
+        let score = 0;
+
+        const pieceShapes = [
+            [[1, 1, 1, 1]],
+            [[1, 1], [1, 1]],
+            [[1, 1, 0], [0, 1, 1]],
+            [[0, 1, 1], [1, 1, 0]],
+            [[1, 0, 0], [1, 0, 0], [1, 0, 0]],
+            [[0, 0, 1], [0, 1, 1], [0, 0, 1]],
+            [[0, 1], [1, 1], [0, 1]]
+        ];
+
+        const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'white'];
+
+        function init() {
+            grid = [];
+            for (let i = 0; i < gridWidth; i++) {
+                grid[i] = new Array(gridHeight).fill(0);
+            }
+
+            currentPiece = generateNewPiece();
+            if (!currentPiece) {
+                gameOver();
+            }
+
+            render();
+        }
+
+        function generateNewPiece() {
+            const pieceIndex = Math.floor(Math.random() * pieceShapes.length);
+            const shape = pieceShapes[pieceIndex];
+            const color = colors[pieceIndex];
+
+            return {
+                x: Math.floor(gridWidth / 2) - shape[0].length / 2,
+                y: 0,
+                shape: shape,
+                color: color
+            };
+        }
+
+        function rotatePiece() {
+            const rotatedShape = [];
+            for (let i = 0; i < shape.length; i++) {
+                rotatedShape[i] = [];
+                for (let j = 0; j < shape[0].length; j++) {
+                    rotatedShape[i][j] = shape[shape.length - 1 - j][i];
+                }
+            }
+            return rotatedShape;
+        }
+
+        function movePiece(dx) {
+            if (dx === 0 && grid[currentPiece.x + 1][currentPiece.y] !== 0) return;
+            if (dx === 1 && currentPiece.x + 1 >= gridWidth) return;
+            if (dx === -1 && currentPiece.x - 1 < 0) return;
+            if (dx === 0 && currentPiece.y + 1 >= gridHeight) return;
+
+            currentPiece.x += dx;
+            if (currentPiece.y + 1 >= gridHeight) {
+                gameOver();
+                return;
+            }
+
+            if (grid[currentPiece.x][currentPiece.y] !== 0) {
+                placePiece();
+            }
+        }
+
+        function placePiece() {
+            for (let i = 0; i < currentPiece.shape.length; i++) {
+                for (let j = 0; j < currentPiece.shape[0].length; j++) {
+                    if (currentPiece.shape[i][j] !== 0) {
+                        grid[currentPiece.x + j][currentPiece.y + i] = currentPiece.color;
+                    }
+                }
+            }
+
+            clearLines();
+
+            currentPiece = generateNewPiece();
+            if (!currentPiece) {
+                gameOver();
+                return;
+            }
+
+            render();
+        }
+
+
+        function clearLines() {
+            let linesCleared = 0;
+            for (let i = 0; i < gridHeight; i++) {
+                if (grid[i].every(cell => cell !== 0)) {
+                    grid.splice(i, 1);
+                    grid[gridHeight - 1] = new Array(gridWidth).fill(0);
+                    linesCleared++;
+
+                    score += linesCleared * 100;
+                    scoreElement.textContent = `Score: ${score}`;
+                }
+            }
+        }
+
+        function gameOver() {
+            alert("Game Over! Score: " + score);
+            // Show overlay and restart button
+            document.getElementById('overlay').style.display = 'flex';
+
+            // Disable controls while overlay is active
+            canvas.removeEventListener('keydown', handleKeyDown);
+        }
+
+        function restartGame() {
+            document.getElementById('overlay').style.display = 'none';
+            init();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < gridWidth; i++) {
+                for (let j = 0; j < gridHeight; j++) {
+                    if (grid[i][j] !== 0) {
+                        ctx.fillStyle = grid[i][j];
+                        ctx.fillRect(i * 30, j * 30, 30, 30);
+                        ctx.strokeStyle = '#222';
+                        ctx.strokeRect(i * 30, j * 30, 30, 30);
+                    }
+                }
+            }
+
+            if (currentPiece) {
+                ctx.fillStyle = currentPiece.color;
+                for (let i = 0; i < currentPiece.shape.length; i++) {
+                    for (let j = 0; j < currentPiece.shape[0].length; j++) {
+                        if (currentPiece.shape[i][j] !== 0) {
+                            ctx.fillRect(currentPiece.x + j * 30, currentPiece.y + i * 30, 30, 30);
+                            ctx.strokeStyle = '#222';
+                            ctx.strokeRect(currentPiece.x + j * 30, currentPiece.y + i * 30, 30, 30);
+                        }
+                    }
+                }
+            }
+        }
+
+        function handleKeyDown(event) {
+            if (document.getElementById('overlay').style.display === 'flex') return;
+
+            switch (event.key) {
+                case 'ArrowLeft':
+                    movePiece(-1);
+                    break;
+                case 'ArrowRight':
+                    movePiece(1);
+                    break;
+                case 'ArrowUp':
+                    currentPiece.shape = rotatePiece();
+                    break;
+                case 'ArrowDown':
+                    movePiece(0); // Soft drop - can be improved for more realistic behavior
+                    break;
+            }
+        }
+
+        // Event listener for swipe gestures (mobile)
+        canvas.addEventListener('touchstart', startSwipe, { passive: false });
+        canvas.addEventListener('touchmove', ignoreTouchMove);
+        canvas.addEventListener('touchend', endSwipe);
+
+        function startSwipe(event) {
+            startX = event.touches[0].startX;
+            startY = event.touches[0].startY;
+        }
+
+        function ignoreTouchMove(event) {
+            // Prevent default behavior to stop the swipe from moving the canvas
+            event.preventDefault();
+        }
+
+        function endSwipe(event) {
+            let dx = event.touches[0].endX - startX;
+            let dy = event.touches[0].endY - startY;
+
+            if (Math.abs(dx) > Math.abs(dy)) {
+                movePiece(dx > 0 ? 1 : -1);
+            } else {
+                movePiece(dy > 0 ? 1 : -1);
+            }
+
+            startX = null;
+            startY = null;
+        }
+
+
+        init();
+
+        // Show instructions on start
+        document.addEventListener('DOMContentLoaded', () => {
+            const restartButton = document.getElementById('restart');
+            restartButton.addEventListener('click', restartGame);
+
+            // Show instructions on page load (desktop and mobile)
+            document.addEventListener('DOMContentLoaded', () => {
+                const overlay = document.getElementById('overlay');
+                const overlayContent = document.getElementById('overlay-content');
+
+                // Show instructions on desktop
+                document.addEventListener('DOMContentLoaded', () => {
+                    const restartButton = document.getElementById('restart');
+                    restartButton.addEventListener('click', restartGame);
+
+                });
+
+                // Show instructions on mobile
+                overlay.style.display = 'flex'; // Initially hide overlay
+
+                // Hide instructions on desktop
+                document.addEventListener('DOMContentLoaded', () => {
+                    const restartButton = document.getElementById('restart');
+                    restartButton.addEventListener('click', restartGame);
+
+                });
+
+
+            });
+        });
+
+
+
+        // Add event listener for keydown to handle arrow keys on desktop
+        document.addEventListener('keydown', handleKeyDown);
+
+    </script>
+</body>
+</html>
